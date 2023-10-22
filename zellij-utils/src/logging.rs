@@ -9,12 +9,12 @@ use std::{
 
 use log::LevelFilter;
 
-use log4rs::append::rolling_file::{
+use log4rs::append::{rolling_file::{
     policy::compound::{
         roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger, CompoundPolicy,
     },
     RollingFileAppender,
-};
+}, console::ConsoleAppender};
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
@@ -67,10 +67,14 @@ pub fn configure_logger() {
         )
         .unwrap();
 
+
+    let stdout = ConsoleAppender::builder().build();
+
     // Set the default logging level to "info" and log it to zellij.log file
     // Decrease verbosity for `wasmer_compiler_cranelift` module because it has a lot of useless info logs
     // For `zellij_server::logging_pipe`, we use custom format as we use logging macros to forward stderr output from plugins
     let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(Appender::builder().build("logFile", Box::new(log_file)))
         .appender(Appender::builder().build("logPlugin", Box::new(log_plugin)))
         .logger(
@@ -84,7 +88,11 @@ pub fn configure_logger() {
                 .additive(false)
                 .build("zellij_server::logging_pipe", LevelFilter::Trace),
         )
-        .build(Root::builder().appender("logFile").build(LevelFilter::Info))
+        .build(Root::builder()
+            .appender("logFile")
+            .appender("stdout")
+            .build(LevelFilter::Info)
+        )
         .unwrap();
 
     let _ = log4rs::init_config(config).unwrap();

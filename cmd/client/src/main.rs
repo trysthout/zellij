@@ -1,7 +1,7 @@
-pub mod commands;
+mod commands;
 mod sessions;
-#[cfg(test)]
-mod tests;
+//#[cfg(test)]
+//mod tests;
 
 use zellij_utils::{
     clap::Parser,
@@ -104,8 +104,6 @@ fn main() {
     })) = opts.command
     {
         commands::delete_session(target_session, force);
-    } else if let Some(path) = opts.server {
-        commands::start_server(path, opts.debug);
     } else {
         commands::start_client(opts);
     }

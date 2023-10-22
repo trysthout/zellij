@@ -1,0 +1,22 @@
+[package]
+name = "zellij-client-command"
+version = "0.39.0"
+authors = ["Aram Drevekenin <aram@poor.dev>"]
+edition = "2021"
+description = "A terminal workspace with batteries included"
+license = "MIT"
+rust-version = "1.60"
+
+[dependencies]
+zellij-utils = { path = "../../zellij-utils" }
+zellij-client = { path = "../../zellij-client", version = "0.39.0" }
+zellij-server = { path = "../../zellij-server", version = "0.39.0" }
+thiserror = "1.0.40"
+names = { version = "0.14.0", default-features = false }
+log = "0.4.17"
+dialoguer = "0.10.4"
+suggest = "0.4.0"
+
+[[bin]]
+path = "src/main.rs"
+name = "zellij-client"

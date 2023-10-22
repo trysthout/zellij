@@ -4599,6 +4599,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "zellij-client-command"
+version = "0.39.0"
+dependencies = [
+ "dialoguer",
+ "log",
+ "names",
+ "suggest",
+ "thiserror",
+ "zellij-client",
+ "zellij-server",
+ "zellij-utils",
+]
+
+[[package]]
+name = "zellij-command"
+version = "0.39.0"
+dependencies = [
+ "zellij",
+]
+
+[[package]]
 name = "zellij-server"
 version = "0.39.0"
 dependencies = [
@@ -4626,6 +4647,17 @@ dependencies = [
  "uuid",
  "wasmer",
  "wasmer-wasi",
+ "zellij-utils",
+]
+
+[[package]]
+name = "zellij-server-command"
+version = "0.39.0"
+dependencies = [
+ "log",
+ "serde",
+ "zellij",
+ "zellij-client",
  "zellij-utils",
 ]
 

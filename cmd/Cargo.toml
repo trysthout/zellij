@@ -1,0 +1,11 @@
+[package]
+name = "zellij-command"
+version = "0.39.0"
+authors = ["Aram Drevekenin <aram@poor.dev>"]
+edition = "2021"
+description = "A terminal workspace with batteries included"
+license = "MIT"
+rust-version = "1.60"
+
+[dependencies]
+zellij = { path = "../"}

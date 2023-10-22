@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use url::Url;
 
-fn validate_session(name: &str) -> Result<String, String> {
+pub fn validate_session(name: &str) -> Result<String, String> {
     #[cfg(unix)]
     {
         use crate::consts::ZELLIJ_SOCK_MAX_LENGTH;

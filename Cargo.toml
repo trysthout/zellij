@@ -42,8 +42,14 @@ members = [
     "zellij-tile",
     "zellij-tile-utils",
     "xtask",
-    ".",
+    "cmd",
+    "cmd/server",
+    "cmd/client"
+    #".",
+    
 ]
+
+default-members = ["cmd/server", "cmd/client"]
 
 [profile.dev-opt]
 inherits = "dev"

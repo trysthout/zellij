@@ -123,7 +123,7 @@ pub(crate) fn delete_session(target_session: &Option<String>, force: bool) {
     }
 }
 
-pub fn get_os_input<OsInputOutput>(
+fn get_os_input<OsInputOutput>(
     fn_get_os_input: fn() -> Result<OsInputOutput, nix::Error>,
 ) -> OsInputOutput {
     match fn_get_os_input() {
