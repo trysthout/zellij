@@ -69,8 +69,6 @@ fn create_ipc_pipe() -> PathBuf {
 }
 
 fn main() {
-    //std::thread::sleep(std::time::Duration::from_millis(1000));
-    //println!("122");
     configure_logger();
     let opts = CliArgs::parse(); 
 
