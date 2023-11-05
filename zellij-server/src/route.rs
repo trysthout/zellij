@@ -10,6 +10,7 @@ use crate::{
     screen::ScreenInstruction,
     ServerInstruction, SessionMetaData, SessionState,
 };
+use log::debug;
 use zellij_utils::{
     channels::SenderWithContext,
     data::{Direction, Event, PluginCapabilities, ResizeStrategy},
@@ -840,6 +841,8 @@ pub(crate) fn route_thread_main(
                                         return Ok(true);
                                     }
                                 }
+
+                                debug!("route--------------- {:?} {:?}", action, client_id);
                                 if route_action(
                                     action,
                                     client_id,

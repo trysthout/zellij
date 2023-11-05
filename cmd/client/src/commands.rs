@@ -123,7 +123,7 @@ pub(crate) fn delete_session(target_session: &Option<String>, force: bool) {
     }
 }
 
-fn get_os_input<OsInputOutput>(
+pub fn get_os_input<OsInputOutput>(
     fn_get_os_input: fn() -> Result<OsInputOutput, nix::Error>,
 ) -> OsInputOutput {
     match fn_get_os_input() {
@@ -456,6 +456,7 @@ pub(crate) fn start_client(opts: CliArgs) {
                 if create && !session_exists && resurrection_layout.is_none() {
                     session_name.clone().map(start_client_plan);
                 }
+
                 match (session_name.as_ref(), resurrection_layout) {
                     (Some(session_name), Some(mut resurrection_layout)) if !session_exists => {
                         if force_run_commands {
@@ -463,7 +464,9 @@ pub(crate) fn start_client(opts: CliArgs) {
                         }
                         ClientInfo::Resurrect(session_name.clone(), resurrection_layout)
                     },
-                    _ => attach_with_session_name(session_name, config_options.clone(), create),
+                    _ => {
+                        attach_with_session_name(session_name, config_options.clone(), create)
+                    }
                 }
             };
 

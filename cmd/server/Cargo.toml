@@ -17,3 +17,7 @@ log = "0.4.17"
 [[bin]]
 path = "src/main.rs"
 name = "zellij-server"
+
+[lib]
+path = "src/lib.rs"
+name = "zellij_server_command"

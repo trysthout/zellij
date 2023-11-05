@@ -964,6 +964,7 @@ impl Pty {
                 let _ = senders.send_to_screen(ScreenInstruction::ClosePane(pane_id, None));
             }
         });
+
         match run_instruction {
             Some(Run::Command(mut command)) => {
                 let starts_held = command.hold_on_start;

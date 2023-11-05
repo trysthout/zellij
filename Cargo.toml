@@ -44,12 +44,11 @@ members = [
     "xtask",
     "cmd",
     "cmd/server",
-    "cmd/client"
-    #".",
-    
+    "cmd/client",
+    "zellij-ssh-server"
 ]
 
-default-members = ["cmd/server", "cmd/client"]
+default-members = ["cmd/server", "cmd/client", "zellij-ssh-server"]
 
 [profile.dev-opt]
 inherits = "dev"

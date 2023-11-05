@@ -491,6 +491,11 @@ pub fn start_server(mut os_input: Box<dyn ServerOsApi>, socket_path: PathBuf) {
                 }
             },
             ServerInstruction::ClientExit(client_id) => {
+                let client_count = session_state.read().unwrap().client_ids().len();
+                if client_count == 1 {
+                    to_server.send(ServerInstruction::DetachSession(vec![client_id])).unwrap();
+                    continue;
+                }
                 let _ =
                     os_input.send_to_client(client_id, ServerToClientMsg::Exit(ExitReason::Normal));
                 remove_client!(client_id, os_input, session_state);
@@ -520,10 +525,10 @@ pub fn start_server(mut os_input: Box<dyn ServerOsApi>, socket_path: PathBuf) {
                     .senders
                     .send_to_plugin(PluginInstruction::RemoveClient(client_id))
                     .unwrap();
-                if session_state.read().unwrap().clients.is_empty() {
-                    *session_data.write().unwrap() = None;
-                    break;
-                }
+                //if session_state.read().unwrap().clients.is_empty() {
+                //    *session_data.write().unwrap() = None;
+                //    break;
+                //}
             },
             ServerInstruction::RemoveClient(client_id) => {
                 remove_client!(client_id, os_input, session_state);
@@ -757,6 +762,7 @@ fn init_session(
             ..Default::default()
         })
     });
+
     let path_to_default_shell = config_options
         .default_shell
         .clone()

@@ -192,7 +192,8 @@ fn handle_openpty(
                     Ok(())
                 })
                 .spawn()
-                .expect("failed to spawn")
+                .unwrap()
+                //.expect("failed to spawn")
         };
 
         let child_id = child.id();
@@ -591,6 +592,7 @@ impl ServerOsApi for ServerOsInputOutput {
                 .collect();
             terminal_id = current_ids.last().map(|l| l + 1).or(Some(0));
         }
+
         match terminal_id {
             Some(terminal_id) => {
                 self.terminal_id_to_raw_fd

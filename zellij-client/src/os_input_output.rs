@@ -7,7 +7,9 @@ use mio::{unix::SourceFd, Events, Interest, Poll, Token};
 use nix::pty::Winsize;
 use nix::sys::termios;
 use signal_hook::{consts::signal::*, iterator::Signals};
+use std::fs::File;
 use std::io::prelude::*;
+use std::os::fd::FromRawFd;
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -87,6 +89,10 @@ pub struct ClientOsInputOutput {
 pub trait ClientOsApi: Send + Sync {
     /// Returns the size of the terminal associated to file descriptor `fd`.
     fn get_terminal_size_using_fd(&self, fd: RawFd) -> Size;
+    /// set_terminal_size only used by ssh server
+    fn set_terminal_size(&mut self, _win_size: Winsize) {
+        unimplemented!()
+    }
     /// Set the terminal associated to file descriptor `fd` to
     /// [raw mode](https://en.wikipedia.org/wiki/Terminal_mode).
     fn set_raw_mode(&mut self, fd: RawFd);
@@ -113,9 +119,22 @@ pub trait ClientOsApi: Send + Sync {
     fn enable_mouse(&self) -> Result<()>;
     fn disable_mouse(&self) -> Result<()>;
     // Repeatedly send action, until stdin is readable again
-    fn stdin_poller(&self) -> StdinPoller;
+    fn stdin_poller(&self) -> Box<dyn StdinPoller>;
     fn env_variable(&self, _name: &str) -> Option<String> {
         None
+    }
+
+    fn get_stdout_ssh_writer(&self, fd: RawFd) -> Box<dyn io::Write> {
+        let stdout = unsafe {
+           File::from_raw_fd(fd) 
+        };
+        Box::new(stdout)
+    }
+    fn get_stdin_ssh_reader(&self, fd: RawFd) -> Box<dyn io::Read> {
+        let stdin= unsafe {
+           File::from_raw_fd(fd) 
+        };
+        Box::new(stdin)
     }
 }
 
@@ -124,19 +143,20 @@ impl ClientOsApi for ClientOsInputOutput {
         get_terminal_size_using_fd(fd)
     }
     fn set_raw_mode(&mut self, fd: RawFd) {
-        into_raw_mode(fd);
+        //into_raw_mode(fd);
     }
     fn unset_raw_mode(&self, fd: RawFd) -> Result<(), nix::Error> {
-        match &self.orig_termios {
-            Some(orig_termios) => {
-                let orig_termios = orig_termios.lock().unwrap();
-                unset_raw_mode(fd, orig_termios.clone())
-            },
-            None => {
-                log::warn!("trying to unset raw mode for a non-terminal session");
-                Ok(())
-            },
-        }
+        //match &self.orig_termios {
+        //    Some(orig_termios) => {
+        //        let orig_termios = orig_termios.lock().unwrap();
+        //        unset_raw_mode(fd, orig_termios.clone())
+        //    },
+        //    None => {
+        //        log::warn!("trying to unset raw mode for a non-terminal session");
+        //        Ok(())
+        //    },
+        //}
+        Ok(())
     }
     fn box_clone(&self) -> Box<dyn ClientOsApi> {
         Box::new((*self).clone())
@@ -159,8 +179,11 @@ impl ClientOsApi for ClientOsInputOutput {
         // the lock (without having to wait for STDIN itself) forward this buffer and proceed to
         // wait for the "real" STDIN net time it is called
         let mut buffered_bytes = self.reading_from_stdin.lock().unwrap();
+        
         match buffered_bytes.take() {
-            Some(buffered_bytes) => Ok(buffered_bytes),
+            Some(buffered_bytes) => {
+                Ok(buffered_bytes)
+            },
             None => {
                 let stdin = std::io::stdin();
                 let mut stdin = stdin.lock();
@@ -263,12 +286,12 @@ impl ClientOsApi for ClientOsInputOutput {
         default_palette()
     }
     fn enable_mouse(&self) -> Result<()> {
-        let err_context = "failed to enable mouse mode";
-        let mut stdout = self.get_stdout_writer();
-        stdout
-            .write_all(ENABLE_MOUSE_SUPPORT.as_bytes())
-            .context(err_context)?;
-        stdout.flush().context(err_context)?;
+        //let err_context = "failed to enable mouse mode";
+        //let mut stdout = self.get_stdout_writer();
+        //stdout
+        //    .write_all(ENABLE_MOUSE_SUPPORT.as_bytes())
+        //    .context(err_context)?;
+        //stdout.flush().context(err_context)?;
         Ok(())
     }
 
@@ -282,8 +305,8 @@ impl ClientOsApi for ClientOsInputOutput {
         Ok(())
     }
 
-    fn stdin_poller(&self) -> StdinPoller {
-        StdinPoller::default()
+    fn stdin_poller(&self) -> Box<dyn StdinPoller> {
+        Box::new(DefaultStdinPoller::default())
     }
 
     fn env_variable(&self, name: &str) -> Option<String> {
@@ -322,17 +345,22 @@ pub fn get_cli_client_os_input() -> Result<ClientOsInputOutput, nix::Error> {
     })
 }
 
+pub trait StdinPoller {
+    fn ready(&mut self) -> bool;
+}
+
+
 pub const DEFAULT_STDIN_POLL_TIMEOUT_MS: u64 = 10;
 
-pub struct StdinPoller {
+pub struct DefaultStdinPoller {
     poll: Poll,
     events: Events,
     timeout: time::Duration,
 }
 
-impl StdinPoller {
+impl StdinPoller for DefaultStdinPoller {
     // use mio poll to check if stdin is readable without blocking
-    pub fn ready(&mut self) -> bool {
+    fn ready(&mut self) -> bool {
         self.poll
             .poll(&mut self.events, Some(self.timeout))
             .expect("could not poll stdin for readiness");
@@ -345,7 +373,7 @@ impl StdinPoller {
     }
 }
 
-impl Default for StdinPoller {
+impl Default for DefaultStdinPoller {
     fn default() -> Self {
         let stdin = 0;
         let mut stdin_fd = SourceFd(&stdin);

@@ -146,21 +146,13 @@ fn assert_socket(name: &str) -> bool {
     }
 }
 
-pub(crate) fn print_sessions(
-    mut sessions: Vec<(String, Duration, bool)>,
-    no_formatting: bool,
-    short: bool,
-) {
+pub(crate) fn print_sessions(mut sessions: Vec<(String, Duration, bool)>, no_formatting: bool) {
     // (session_name, timestamp, is_dead)
     let curr_session = envs::get_session_name().unwrap_or_else(|_| "".into());
     sessions.sort_by(|a, b| a.1.cmp(&b.1));
     sessions
         .iter()
         .for_each(|(session_name, timestamp, is_dead)| {
-            if short {
-                println!("{}", session_name);
-                return;
-            }
             if no_formatting {
                 let suffix = if curr_session == *session_name {
                     format!("(current)")
@@ -253,7 +245,7 @@ pub(crate) fn delete_session(name: &str, force: bool) {
     }
 }
 
-pub(crate) fn list_sessions(no_formatting: bool, short: bool) {
+pub(crate) fn list_sessions(no_formatting: bool) {
     let exit_code = match get_sessions() {
         Ok(running_sessions) => {
             let resurrectable_sessions = get_resurrectable_sessions();
@@ -276,7 +268,6 @@ pub(crate) fn list_sessions(no_formatting: bool, short: bool) {
                         })
                         .collect(),
                     no_formatting,
-                    short,
                 );
                 0
             }
@@ -565,31 +556,3 @@ const NOUNS: &[&'static str] = &[
     "yak",
     "zebra",
 ];
-
-pub fn generate_unique_session_name() -> String {
-    let sessions = get_sessions().map(|sessions| {
-        sessions
-            .iter()
-            .map(|s| s.0.clone())
-            .collect::<Vec<String>>()
-    });
-    let dead_sessions: Vec<String> = get_resurrectable_sessions()
-        .iter()
-        .map(|(s, _, _)| s.clone())
-        .collect();
-    let Ok(sessions) = sessions else {
-        eprintln!("Failed to list existing sessions: {:?}", sessions);
-        process::exit(1);
-    };
-
-    let name = get_name_generator()
-        .take(1000)
-        .find(|name| !sessions.contains(name) && !dead_sessions.contains(name));
-
-    if let Some(name) = name {
-        return name;
-    } else {
-        eprintln!("Failed to generate a unique session name, giving up");
-        process::exit(1);
-    }
-}

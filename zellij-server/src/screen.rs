@@ -3445,6 +3445,7 @@ pub(crate) fn screen_thread_main(
             },
         }
     }
+
     Ok(())
 }
 
