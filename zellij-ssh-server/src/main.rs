@@ -1,17 +1,16 @@
 mod handler;
-mod session;
 mod server;
-mod zellij_session;
+mod session;
 mod ssh;
+mod zellij_session;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{Error, ErrorKind};
 
-use russh::{Pty, ChannelId, server::Handle, CryptoVec};
+
+use russh::{server::Handle, ChannelId, Pty};
 
 #[derive(Clone)]
 pub struct ServerHandle(Handle);
-
 
 impl Debug for ServerHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,10 +20,10 @@ impl Debug for ServerHandle {
 
 #[derive(Clone)]
 pub struct ServerOutput {
-   sender: UnboundedSender<(Option<String>, Option<()>)>,
-   handle: Handle, 
-   channel_id: ChannelId,
-   runtime_handle: tokio::runtime::Handle,
+    sender: UnboundedSender<(Option<String>, Option<()>)>,
+    handle: Handle,
+    channel_id: ChannelId,
+    runtime_handle: tokio::runtime::Handle,
 }
 
 impl std::io::Write for ServerOutput {
@@ -34,7 +33,8 @@ impl std::io::Write for ServerOutput {
         //let handle = self.handle.clone();
         //let channel_id = self.channel_id.clone();
         //let data = CryptoVec::from_slice(buf);
-        self.sender.send((Some(String::from_utf8_lossy(buf).to_string()), None));
+        self.sender
+            .send((Some(String::from_utf8_lossy(buf).to_string()), None));
         //runtime_handle.spawn(async move {
         //    let res = handle.data(channel_id, data).await;
         //    //let _ = tx.send(res);
@@ -44,13 +44,13 @@ impl std::io::Write for ServerOutput {
         //res.map_err(|e|Error::new(ErrorKind::Other,"handle data"))?;
         Ok(buf.len())
     }
-   fn write_all(&mut self, mut buf: &[u8]) -> std::io::Result<()> {
-        self.write(buf).map(|_|())
-   } 
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        self.write(buf).map(|_| ())
+    }
 
-   fn flush(&mut self) -> std::io::Result<()> {
-      Ok(()) 
-   }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 #[derive(Clone, Debug)]
 pub struct PtyRequest {
@@ -62,7 +62,6 @@ pub struct PtyRequest {
     pub modes: Vec<(Pty, u32)>,
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub struct ServerChannelId(pub ChannelId);
 
@@ -72,11 +71,10 @@ impl Display for ServerChannelId {
     }
 }
 
-
 use tokio::sync::mpsc::UnboundedSender;
-use zellij_utils::logging::configure_logger;
 use zellij_server_command::CliArgs;
 use zellij_utils::clap::Parser;
+use zellij_utils::logging::configure_logger;
 
 #[tokio::main]
 async fn main() {

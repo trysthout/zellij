@@ -1,25 +1,24 @@
-use tokio::sync::mpsc::UnboundedSender;
-use zellij_utils::anyhow::{Context, Result};
-use zellij_utils::pane_size::Size;
-use std::{io, thread, time};
-use std::os::fd::FromRawFd;
+use crossbeam_channel::Receiver;
+use interprocess::local_socket::LocalSocketStream;
+use russh::{ChannelId, Sig};
+
+
 use std::os::unix::io::RawFd;
 use std::path::Path;
-use russh::{ChannelId, Sig};
-use zellij_client::os_input_output::StdinPoller;
 use std::sync::{Arc, Mutex};
-use crossbeam_channel::Receiver;
-use signal_hook::{consts::signal::*, iterator::Signals};
-use interprocess::local_socket::LocalSocketStream;
+use std::{io, time};
+use tokio::sync::mpsc::UnboundedSender;
+use zellij_client::os_input_output::ClientOsApi;
+use zellij_client::os_input_output::StdinPoller;
+use zellij_utils::anyhow::{Context, Result};
+use zellij_utils::pane_size::Size;
 use zellij_utils::{
     data::Palette,
     errors::ErrorContext,
     ipc::{ClientToServerMsg, IpcReceiverWithContext, IpcSenderWithContext, ServerToClientMsg},
     shared::default_palette,
 };
-use zellij_client::os_input_output::ClientOsApi;
-use zellij_utils::{interprocess, libc, nix, signal_hook};
-
+use zellij_utils::{interprocess, libc, nix};
 
 use crate::{ServerHandle, ServerOutput};
 
@@ -34,21 +33,25 @@ pub struct SshInputOutput {
     pub win_size: libc::winsize,
     pub channel_id: ChannelId,
     pub send_instructions_to_server: Arc<Mutex<Option<IpcSenderWithContext<ClientToServerMsg>>>>,
-    pub receive_instructions_from_server: Arc<Mutex<Option<IpcReceiverWithContext<ServerToClientMsg>>>>,
+    pub receive_instructions_from_server:
+        Arc<Mutex<Option<IpcReceiverWithContext<ServerToClientMsg>>>>,
     pub reading_from_stdin: Arc<Mutex<Option<Vec<u8>>>>,
     pub session_name: Arc<Mutex<Option<String>>>,
-    pub sender: UnboundedSender::<(Option<String>, Option<()>)>,
+    pub sender: UnboundedSender<(Option<String>, Option<()>)>,
     pub server_receiver: Receiver<Vec<u8>>,
-    pub server_signal_receiver: Receiver<Sig>
+    pub server_signal_receiver: Receiver<Sig>,
 }
 
 impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     fn get_terminal_size_using_fd(&self, _: i32) -> Size {
-        Size { rows: self.win_size.ws_row as usize, cols: self.win_size.ws_col as usize }
+        Size {
+            rows: self.win_size.ws_row as usize,
+            cols: self.win_size.ws_col as usize,
+        }
     }
 
     fn set_terminal_size(&mut self, win_size: libc::winsize) {
-       self.win_size = win_size 
+        self.win_size = win_size
     }
 
     fn set_raw_mode(&mut self, _: RawFd) {
@@ -82,14 +85,12 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
         // the lock (without having to wait for STDIN itself) forward this buffer and proceed to
         // wait for the "real" STDIN net time it is called
         let mut buffered_bytes = self.reading_from_stdin.lock().unwrap();
-        
+
         match buffered_bytes.take() {
-            Some(buffered_bytes) => {
-                Ok(buffered_bytes)
-            },
+            Some(buffered_bytes) => Ok(buffered_bytes),
             None => {
                 let read_bytes = if let Ok(data) = self.server_receiver.recv() {
-                        data
+                    data
                 } else {
                     return Err("sshd channel disconnected");
                 };
@@ -109,11 +110,11 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     }
 
     fn get_stdout_writer(&self) -> Box<dyn io::Write> {
-        Box::new(ServerOutput{
+        Box::new(ServerOutput {
             sender: self.sender.clone(),
             handle: self.handle.0.clone(),
-            channel_id: self.channel_id.clone(),
-            runtime_handle: tokio::runtime::Runtime::new().unwrap().handle().clone()
+            channel_id: self.channel_id,
+            runtime_handle: tokio::runtime::Runtime::new().unwrap().handle().clone(),
         })
     }
     fn get_stdin_reader(&self) -> Box<dyn io::Read> {
@@ -139,19 +140,17 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
             .unwrap()
             .recv()
     }
-    fn handle_signals(&self, sigwinch_cb: Box<dyn Fn()>, quit_cb: Box<dyn Fn()>) {
-        let mut sigwinch_cb_timestamp = time::Instant::now();
+    fn handle_signals(&self, _sigwinch_cb: Box<dyn Fn()>, quit_cb: Box<dyn Fn()>) {
+        let _sigwinch_cb_timestamp = time::Instant::now();
         match self.server_signal_receiver.recv() {
-            Ok(sig) => {
-                match sig {
-                    Sig::TERM | Sig::INT | Sig::QUIT | Sig::HUP => {
-                        quit_cb();
-                    },
-                    _ => unreachable!() 
-                }
+            Ok(sig) => match sig {
+                Sig::TERM | Sig::INT | Sig::QUIT | Sig::HUP => {
+                    quit_cb();
+                },
+                _ => unreachable!(),
             },
 
-            Err(_) => {}
+            Err(_) => {},
         }
         //let mut signals = Signals::new(&[SIGWINCH, SIGTERM, SIGINT, SIGQUIT, SIGHUP]).unwrap();
         //for signal in signals.forever() {
@@ -233,17 +232,14 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     }
 }
 
-
 pub struct ServerStdinPoller {
     receiver: crossbeam_channel::Receiver<Vec<u8>>,
 }
 
 impl ServerStdinPoller {
     fn new(receiver: crossbeam_channel::Receiver<Vec<u8>>) -> Self {
-        Self {
-            receiver,
-        }
-  }  
+        Self { receiver }
+    }
 }
 
 impl StdinPoller for ServerStdinPoller {
@@ -251,4 +247,3 @@ impl StdinPoller for ServerStdinPoller {
         self.receiver.try_iter().peekable().peek().is_some()
     }
 }
-
