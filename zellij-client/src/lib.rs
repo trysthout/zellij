@@ -527,7 +527,6 @@ pub fn start_client_ssh(
     tab_position_to_focus: Option<usize>,
     pane_id_to_focus: Option<(u32, bool)>, // (pane_id, is_plugin)
     is_a_reconnect: bool,
-    sender: tokio::sync::mpsc::UnboundedSender<(Option<String>, Option<()>)>,
     pty: OpenptyResult
 ) {
     info!("Starting Zellij ssh client!");
@@ -541,14 +540,14 @@ pub fn start_client_ssh(
     //    // we don't do this for a reconnect because our controlling terminal already has the
     //    // attributes we want from it, and some terminals don't treat these atomically (looking at
     //    // your Windows Terminal...)
-    //    let _ = os_input
-    //        .get_stdout_writer()
-    //        .write(take_snapshot.as_bytes())
-    //        .unwrap();
-    //    let _ = os_input
-    //        .get_stdout_writer()
-    //        .write(clear_client_terminal_attributes.as_bytes())
-    //        .unwrap();
+        let _ = os_input
+            .get_stdout_writer()
+            .write(take_snapshot.as_bytes())
+            .unwrap();
+        let _ = os_input
+            .get_stdout_writer()
+            .write(clear_client_terminal_attributes.as_bytes())
+            .unwrap();
     //}
     envs::set_zellij("0".to_string());
     config.env.set_vars();
@@ -764,13 +763,11 @@ pub fn start_client_ssh(
         _ => None,
     };
 
-    //let mut stdout = os_input.get_stdout_writer();
-    //stdout
-    //    .write_all("\u{1b}[1m\u{1b}[HLoading Zellij\u{1b}[m\n\r".as_bytes())
-    //    .expect("cannot write to stdout");
-    //stdout.flush().expect("could not flush");
-    //futures::executor::block_on(handle.data(channel_id, CryptoVec::from_slice("\u{1b}[1m\u{1b}[HLoading Zellij\u{1b}[m\n\r".as_bytes())));
-    let _ = sender.send((Some("\u{1b}[1m\u{1b}[HLoading Zellij\u{1b}[m\n\r".to_string()), None));
+    let mut stdout = os_input.get_stdout_writer();
+    stdout
+        .write_all("\u{1b}[1m\u{1b}[HLoading Zellij\u{1b}[m\n\r".as_bytes())
+        .expect("cannot write to stdout");
+    stdout.flush().expect("could not flush");
 
     loop {
         let (client_instruction, mut err_ctx) = if !loading && !pending_instructions.is_empty() {
@@ -788,17 +785,16 @@ pub fn start_client_ssh(
             // when the app is still loading, we buffer instructions and show a loading screen
             match client_instruction {
                 ClientInstruction::StartedParsingStdinQuery => {
-                    //futures::executor::block_on(handle.data(channel_id, CryptoVec::from_slice("Querying terminal emulator for \u{1b}[32;1mdefault colors\u{1b}[m and \u{1b}[32;1mpixel/cell\u{1b}[m ratio...".as_bytes())));
-                    //stdout
-                    //    .write_all("Querying terminal emulator for \u{1b}[32;1mdefault colors\u{1b}[m and \u{1b}[32;1mpixel/cell\u{1b}[m ratio...".as_bytes())
-                    //    .expect("cannot write to stdout");
-                    //stdout.flush().expect("could not flush");
+                    stdout
+                        .write_all("Querying terminal emulator for \u{1b}[32;1mdefault colors\u{1b}[m and \u{1b}[32;1mpixel/cell\u{1b}[m ratio...".as_bytes())
+                        .expect("cannot write to stdout");
+                    stdout.flush().expect("could not flush");
                 },
                 ClientInstruction::DoneParsingStdinQuery => {
-                    //stdout
-                    //    .write_all("done".as_bytes())
-                    //    .expect("cannot write to stdout");
-                    //stdout.flush().expect("could not flush");
+                    stdout
+                        .write_all("done".as_bytes())
+                        .expect("cannot write to stdout");
+                    stdout.flush().expect("could not flush");
                     loading = false;
                 },
                 instruction => {
@@ -827,33 +823,18 @@ pub fn start_client_ssh(
             ClientInstruction::Render(output) => {
                 let mut stdout = os_input.get_stdout_writer();
                 if let Some(sync) = synchronised_output {
-                    //let data = CryptoVec::from(sync.start_seq().to_vec());
-                    //futures::executor::block_on(handle.data(channel_id, data));
-                    //sender.send(sync.start_seq());
-                    //stdout
-                    //    .write_all(sync.start_seq())
-                    //    .expect("cannot write to stdout");
+                    stdout
+                        .write_all(sync.start_seq())
+                        .expect("cannot write to stdout");
                 }
 
-
-                let _ = sender.send((Some(output), None));
-                //let _ = stdout.write(output.as_bytes());
-
-                //let data = CryptoVec::from(output);
-                //futures::executor::block_on(handle.data(channel_id, data));
-                //handle.data(channel_id, data);
-                //stdout
-                //    .write_all(output.as_bytes())
-                //    .expect("cannot write to stdout");
-                //if let Some(sync) = synchronised_output {
-                //    let data = CryptoVec::from(sync.start_seq().to_vec());
-                //    futures::executor::block_on(handle.data(channel_id, data));
-                //    //handle.ldata(channel_id, data);
-                //    //stdout
-                //    //    .write_all(sync.end_seq())
-                //    //    .expect("cannot write to stdout");
-                //}
-                //stdout.flush().expect("could not flush");
+                let _ = stdout.write(output.as_bytes());
+                if let Some(sync) = synchronised_output {
+                    stdout
+                        .write_all(sync.end_seq())
+                        .expect("cannot write to stdout");
+                }
+                stdout.flush().expect("could not flush");
             },
             ClientInstruction::UnblockInputThread => {
                 command_is_executing.unblock_input_thread();
@@ -894,13 +875,11 @@ pub fn start_client_ssh(
 
         os_input.disable_mouse().non_fatal();
         info!("{}", exit_msg);
-        //os_input.unset_raw_mode(pty.slave).unwrap();
         let mut stdout = os_input.get_stdout_writer();
-        println!("good {:?}", goodbye_message);
         let _ = stdout.write(goodbye_message.as_bytes()).unwrap();
-        //thread::sleep(time::Duration::from_secs(1));
-        let _ = sender.send((None, Some(())));
-        //stdout.flush().unwrap();
+        //let _ = sender.send((None, Some(())));
+        let _ = stdout.write(&[]).unwrap();
+        stdout.flush().unwrap();
     //} else {
     //    let clear_screen = "\u{1b}[2J";
     //    let mut stdout = os_input.get_stdout_ssh_writer(pty.master);

@@ -115,8 +115,6 @@ pub(crate) fn stdin_loop(
 
                     holding_mouse = is_mouse_press_or_hold(&input_event);
 
-                    println!("input events {:?}", input_event);
-
                     send_input_instructions
                         .send(InputInstruction::KeyEvent(
                             input_event,

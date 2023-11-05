@@ -73,24 +73,6 @@ impl Session {
         }
     }
 
-    pub async fn recv(&mut self) {
-        let handle = self.handle.clone().unwrap();
-        let channel_id = self.channel_id.unwrap().0;
-        loop {
-            if let Some(event) = self.recv.recv().await {
-                if let Some(data) = event.0 {
-                    let _ = handle.data(channel_id, CryptoVec::from(data)).await;
-                    continue;
-                }
-
-                if event.1.is_some() {
-                    let _ = handle.close(channel_id).await;
-                    break;
-                }
-            }
-        }
-    }
-
     async fn handle_handler_event(&mut self, event: HandlerEvent, args: CliArgs) {
         match event {
             HandlerEvent::Authenticated(handle, tx) => {
@@ -287,12 +269,6 @@ impl Session {
                 }
             };
 
-            //if let Ok(val) = std::env::var(envs::SESSION_NAME_ENV_KEY) {
-            //    if val == *client.get_session_name() {
-            //        panic!("You are trying to attach to the current session (\"{}\"). This is not supported.", val);
-            //    }
-            //}
-
             let attach_layout = match &client {
                 ClientInfo::Attach(_, _) => None,
                 ClientInfo::New(_) => Some(layout),
@@ -317,7 +293,6 @@ impl Session {
                 tab_position_to_focus,
                 pane_id_to_focus,
                 is_a_reconnect,
-                sender,
                 pty,
             );
         } else if let Some(session_name) = opts.session.clone() {
@@ -331,7 +306,6 @@ impl Session {
                 None,
                 None,
                 is_a_reconnect,
-                sender,
                 pty,
             );
         } else if let Some(session_name) = config_options.session_name.as_ref() {
@@ -372,7 +346,6 @@ impl Session {
                         None,
                         None,
                         is_a_reconnect,
-                        sender,
                         pty,
                     );
                 },
@@ -387,7 +360,6 @@ impl Session {
                         None,
                         None,
                         is_a_reconnect,
-                        sender,
                         pty,
                     );
                 },

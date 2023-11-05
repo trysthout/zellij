@@ -143,20 +143,19 @@ impl ClientOsApi for ClientOsInputOutput {
         get_terminal_size_using_fd(fd)
     }
     fn set_raw_mode(&mut self, fd: RawFd) {
-        //into_raw_mode(fd);
+        into_raw_mode(fd);
     }
     fn unset_raw_mode(&self, fd: RawFd) -> Result<(), nix::Error> {
-        //match &self.orig_termios {
-        //    Some(orig_termios) => {
-        //        let orig_termios = orig_termios.lock().unwrap();
-        //        unset_raw_mode(fd, orig_termios.clone())
-        //    },
-        //    None => {
-        //        log::warn!("trying to unset raw mode for a non-terminal session");
-        //        Ok(())
-        //    },
-        //}
-        Ok(())
+        match &self.orig_termios {
+            Some(orig_termios) => {
+                let orig_termios = orig_termios.lock().unwrap();
+                unset_raw_mode(fd, orig_termios.clone())
+            },
+            None => {
+                log::warn!("trying to unset raw mode for a non-terminal session");
+                Ok(())
+            },
+        }
     }
     fn box_clone(&self) -> Box<dyn ClientOsApi> {
         Box::new((*self).clone())
@@ -286,12 +285,12 @@ impl ClientOsApi for ClientOsInputOutput {
         default_palette()
     }
     fn enable_mouse(&self) -> Result<()> {
-        //let err_context = "failed to enable mouse mode";
-        //let mut stdout = self.get_stdout_writer();
-        //stdout
-        //    .write_all(ENABLE_MOUSE_SUPPORT.as_bytes())
-        //    .context(err_context)?;
-        //stdout.flush().context(err_context)?;
+        let err_context = "failed to enable mouse mode";
+        let mut stdout = self.get_stdout_writer();
+        stdout
+            .write_all(ENABLE_MOUSE_SUPPORT.as_bytes())
+            .context(err_context)?;
+        stdout.flush().context(err_context)?;
         Ok(())
     }
 

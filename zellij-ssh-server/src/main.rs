@@ -28,20 +28,13 @@ pub struct ServerOutput {
 
 impl std::io::Write for ServerOutput {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        //let (tx, rx) = crossbeam_channel::bounded(1);
-        //let runtime_handle = self.runtime_handle.clone();
-        //let handle = self.handle.clone();
-        //let channel_id = self.channel_id.clone();
-        //let data = CryptoVec::from_slice(buf);
-        self.sender
-            .send((Some(String::from_utf8_lossy(buf).to_string()), None));
-        //runtime_handle.spawn(async move {
-        //    let res = handle.data(channel_id, data).await;
-        //    //let _ = tx.send(res);
-        //});
-
-        //let res = rx.recv().map_err(|e| Error::new(ErrorKind::Other, e.to_string()))?;
-        //res.map_err(|e|Error::new(ErrorKind::Other,"handle data"))?;
+        if buf.len() > 0 {
+            let _ = self.sender
+                .send((Some(String::from_utf8_lossy(buf).to_string()), None));
+        } else {
+            let _ = self.sender.send((None, Some(())));
+        }
+        
         Ok(buf.len())
     }
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {

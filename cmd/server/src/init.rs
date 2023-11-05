@@ -39,11 +39,8 @@ pub fn init_server(opts: CliArgs) -> JoinHandle<()> {
         envs::set_session_name(generate_unique_session_name())
     }
 
-    let ipc = create_ipc_pipe();
-    let ipc_copy1 = ipc.clone();
-    println!("init ipc {:?}", &ipc);
     let thread_join_handle = thread::spawn(move || {
-        start_server(ipc, opts.debug)
+        start_server(create_ipc_pipe(), opts.debug)
     });
 
     let os_input = get_os_input(get_client_os_input);
@@ -73,7 +70,7 @@ pub fn init_server(opts: CliArgs) -> JoinHandle<()> {
         },
     };
 
-    init_client(Box::new(os_input), zellij_cli_args, config, config_options, Some(layout), None,None, ipc_copy1);
+    init_client(Box::new(os_input), zellij_cli_args, config, config_options, Some(layout), None,None, create_ipc_pipe());
     thread_join_handle
 }
 
