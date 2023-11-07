@@ -96,7 +96,6 @@ impl InputHandler {
                             self.handle_key(&key, raw_bytes);
                         },
                         InputEvent::Mouse(mouse_event) => {
-                            println!("mouse {:?}", mouse_event);
                             let mouse_event =
                                 zellij_utils::input::mouse::MouseEvent::from(mouse_event);
                             self.handle_mouse_event(&mouse_event);
