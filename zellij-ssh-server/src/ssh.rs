@@ -1,5 +1,6 @@
 use crossbeam_channel::Receiver;
 use interprocess::local_socket::LocalSocketStream;
+use log::info;
 use russh::{ChannelId, Sig};
 
 
@@ -20,6 +21,7 @@ use zellij_utils::{
 };
 use zellij_utils::{interprocess, libc, nix};
 
+use crate::session::ZellijClientData;
 use crate::{ServerHandle, ServerOutput};
 
 const SIGWINCH_CB_THROTTLE_DURATION: time::Duration = time::Duration::from_millis(50);
@@ -37,7 +39,7 @@ pub struct SshInputOutput {
         Arc<Mutex<Option<IpcReceiverWithContext<ServerToClientMsg>>>>,
     pub reading_from_stdin: Arc<Mutex<Option<Vec<u8>>>>,
     pub session_name: Arc<Mutex<Option<String>>>,
-    pub sender: UnboundedSender<(Option<String>, Option<()>)>,
+    pub sender: UnboundedSender<ZellijClientData>,
     pub server_receiver: Receiver<Vec<u8>>,
     pub server_signal_receiver: Receiver<Sig>,
 }
@@ -89,21 +91,36 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
         match buffered_bytes.take() {
             Some(buffered_bytes) => Ok(buffered_bytes),
             None => {
-                let read_bytes = if let Ok(data) = self.server_receiver.recv() {
-                    data
-                } else {
-                    return Err("sshd channel disconnected");
-                };
+                    let mut read_buf = if let Ok(data) = self.server_receiver.recv() {
+                        data
+                    } else {
+                        return Err("sshd channel disconnected");
+                    };
+                //let mut read_buf = Vec::with_capacity(128);
+                //loop {
+                //    let mut read_bytes = if let Ok(data) = self.server_receiver.recv() {
+                //        data
+                //    } else {
+                //        return Err("sshd channel disconnected");
+                //    };
+
+                //    if read_bytes.last().unwrap().eq(&('\n' as u8)) {
+                //        read_buf.append(&mut read_bytes);
+                //        break;
+                //    }
+
+                //    read_buf.append(&mut read_bytes);
+                //}
 
                 let session_name_after_reading_from_stdin =
                     { self.session_name.lock().unwrap().clone() };
                 if session_name_at_calltime.is_some()
                     && session_name_at_calltime != session_name_after_reading_from_stdin
                 {
-                    *buffered_bytes = Some(read_bytes);
+                    *buffered_bytes = Some(read_buf);
                     Err("Session ended")
                 } else {
-                    Ok(read_bytes)
+                    Ok(read_buf)
                 }
             },
         }
@@ -230,6 +247,10 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     fn env_variable(&self, name: &str) -> Option<String> {
         std::env::var(name).ok()
     }
+
+    fn close(&self) {
+       let _ = self.sender.send(ZellijClientData::Exit);
+    }
 }
 
 pub struct ServerStdinPoller {
@@ -244,6 +265,7 @@ impl ServerStdinPoller {
 
 impl StdinPoller for ServerStdinPoller {
     fn ready(&mut self) -> bool {
-        self.receiver.try_iter().peekable().peek().is_some()
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        !self.receiver.is_empty()
     }
 }

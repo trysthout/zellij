@@ -35,8 +35,8 @@ pub struct Session {
     pty_request: Option<PtyRequest>,
     channel_id: Option<ServerChannelId>,
     rx: UnboundedReceiver<HandlerEvent>,
-    recv: UnboundedReceiver<(Option<String>, Option<()>)>,
-    sender: UnboundedSender<(Option<String>, Option<()>)>,
+    recv: UnboundedReceiver<ZellijClientData>,
+    sender: UnboundedSender<ZellijClientData>,
     server_sender: crossbeam_channel::Sender<Vec<u8>>,
     server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
     server_signal_sender: crossbeam_channel::Sender<Sig>,
@@ -89,7 +89,7 @@ impl Session {
             },
             HandlerEvent::ShellRequest(channel_id) => {
                 let result = handle_openpty();
-                let (sender, mut recv) = unbounded_channel::<(Option<String>, Option<()>)>();
+                let (sender, mut recv) = unbounded_channel::<ZellijClientData>();
                 let pty_request = self.pty_request.as_ref().unwrap();
                 let win_size = Winsize {
                     ws_row: pty_request.row_height as u16,
@@ -118,14 +118,13 @@ impl Session {
                 tokio::spawn(async move {
                     loop {
                         if let Some(event) = recv.recv().await {
-                            if let Some(data) = event.0 {
-                                let _ = handle.data(channel_id, CryptoVec::from(data)).await;
-                                continue;
-                            }
-
-                            if event.1.is_some() {
-                                //let _ = handle.data(channel_id, CryptoVec::from(event)).await;
-                                let _ = handle.close(channel_id).await;
+                            match event {
+                                ZellijClientData::Data(data) => {
+                                    let _ = handle.data(channel_id, CryptoVec::from(data)).await;
+                                },
+                                ZellijClientData::Exit => {
+                                    let _ = handle.close(channel_id).await;
+                                }
                             }
                         }
                     }
@@ -148,7 +147,7 @@ impl Session {
     fn start_zellij_client(
         args: CliArgs,
         pty: OpenptyResult,
-        sender: UnboundedSender<(Option<String>, Option<()>)>,
+        sender: UnboundedSender<ZellijClientData>,
         server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
         server_signal_receiver: crossbeam_channel::Receiver<Sig>,
         handle: ServerHandle,
@@ -488,7 +487,7 @@ fn get_server_input(
     handle: ServerHandle,
     channel_id: ChannelId,
     win_size: Winsize,
-    sender: UnboundedSender<(Option<String>, Option<()>)>,
+    sender: UnboundedSender<ZellijClientData>,
     server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
     server_signal_receiver: crossbeam_channel::Receiver<Sig>,
 ) -> SshInputOutput {

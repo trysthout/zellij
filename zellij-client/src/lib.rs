@@ -876,10 +876,14 @@ pub fn start_client_ssh(
         os_input.disable_mouse().non_fatal();
         info!("{}", exit_msg);
         let mut stdout = os_input.get_stdout_writer();
+        let _ = os_input
+            .get_stdout_writer()
+            .write(clear_client_terminal_attributes.as_bytes())
+            .unwrap();
         let _ = stdout.write(goodbye_message.as_bytes()).unwrap();
-        //let _ = sender.send((None, Some(())));
-        let _ = stdout.write(&[]).unwrap();
-        stdout.flush().unwrap();
+        let _ = send_input_instructions.send(InputInstruction::Exit);
+        os_input.close();
+        
     //} else {
     //    let clear_screen = "\u{1b}[2J";
     //    let mut stdout = os_input.get_stdout_ssh_writer(pty.master);
@@ -887,7 +891,7 @@ pub fn start_client_ssh(
     //    stdout.flush().unwrap();
     //}
 
-    //let _ = send_input_instructions.send(InputInstruction::Exit);
+
 
     //reconnect_to_session
 }

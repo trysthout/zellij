@@ -2,6 +2,7 @@ use crate::os_input_output::ClientOsApi;
 use crate::stdin_ansi_parser::StdinAnsiParser;
 use crate::InputInstruction;
 use std::sync::{Arc, Mutex};
+use log::info;
 use zellij_utils::channels::SenderWithContext;
 use zellij_utils::termwiz::input::{InputEvent, InputParser, MouseButtons};
 
@@ -78,6 +79,7 @@ pub(crate) fn stdin_loop(
                         continue;
                     }
                 }
+
                 if !ansi_stdin_events.is_empty() {
                     stdin_ansi_parser
                         .lock()
@@ -104,6 +106,7 @@ pub(crate) fn stdin_loop(
                             if poller.ready() {
                                 break;
                             }
+
                             send_input_instructions
                                 .send(InputInstruction::KeyEvent(
                                     input_event.clone(),
@@ -112,7 +115,6 @@ pub(crate) fn stdin_loop(
                                 .unwrap();
                         }
                     }
-
                     holding_mouse = is_mouse_press_or_hold(&input_event);
 
                     send_input_instructions

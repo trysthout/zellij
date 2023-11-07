@@ -124,18 +124,7 @@ pub trait ClientOsApi: Send + Sync {
         None
     }
 
-    fn get_stdout_ssh_writer(&self, fd: RawFd) -> Box<dyn io::Write> {
-        let stdout = unsafe {
-           File::from_raw_fd(fd) 
-        };
-        Box::new(stdout)
-    }
-    fn get_stdin_ssh_reader(&self, fd: RawFd) -> Box<dyn io::Read> {
-        let stdin= unsafe {
-           File::from_raw_fd(fd) 
-        };
-        Box::new(stdin)
-    }
+    fn close(&self) {}
 }
 
 impl ClientOsApi for ClientOsInputOutput {

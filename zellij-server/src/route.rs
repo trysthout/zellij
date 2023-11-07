@@ -842,7 +842,6 @@ pub(crate) fn route_thread_main(
                                     }
                                 }
 
-                                debug!("route--------------- {:?} {:?}", action, client_id);
                                 if route_action(
                                     action,
                                     client_id,

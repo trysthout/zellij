@@ -78,10 +78,12 @@ impl server::Handler for Handler {
         data: &[u8],
         session: Session,
     ) -> Result<(Self, Session), Self::Error> {
-        //let data = CryptoVec::from(format!("Got data: {}\r\n", String::from_utf8_lossy(data)));
-        //self.post(data.clone()).await;
-        //session.data(channel, data);
-        self.send_event(HandlerEvent::Data(ServerChannelId(channel), data.to_vec()))?;
+        let mut data = data.to_vec();
+        if data[0] == 4 {
+            data = vec![17]            
+        }
+
+        self.send_event(HandlerEvent::Data(ServerChannelId(channel), data))?;
         Ok((self, session))
     }
 

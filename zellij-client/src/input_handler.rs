@@ -3,6 +3,7 @@ use crate::{
     os_input_output::ClientOsApi, stdin_ansi_parser::AnsiStdinInstruction, ClientId,
     ClientInstruction, CommandIsExecuting, InputInstruction,
 };
+use log::info;
 use zellij_utils::{
     channels::{Receiver, SenderWithContext, OPENCALLS},
     data::{InputMode, Key},
@@ -95,6 +96,7 @@ impl InputHandler {
                             self.handle_key(&key, raw_bytes);
                         },
                         InputEvent::Mouse(mouse_event) => {
+                            println!("mouse {:?}", mouse_event);
                             let mouse_event =
                                 zellij_utils::input::mouse::MouseEvent::from(mouse_event);
                             self.handle_mouse_event(&mouse_event);
@@ -283,7 +285,6 @@ impl InputHandler {
     /// is revised. See [issue#183](https://github.com/zellij-org/zellij/issues/183).
     fn dispatch_action(&mut self, action: Action, client_id: Option<ClientId>) -> bool {
         let mut should_break = false;
-
         match action {
             Action::NoOp => {},
             Action::Quit => {

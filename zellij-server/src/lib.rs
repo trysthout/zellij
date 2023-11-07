@@ -622,6 +622,7 @@ pub fn start_server(mut os_input: Box<dyn ServerOsApi>, socket_path: PathBuf) {
                     for client_id in client_ids {
                         let _ = os_input
                             .send_to_client(client_id, ServerToClientMsg::Exit(ExitReason::Normal));
+                        info!("client {:?}", client_id);
                         remove_client!(client_id, os_input, session_state);
                     }
                     break;

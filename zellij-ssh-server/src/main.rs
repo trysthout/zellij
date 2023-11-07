@@ -20,7 +20,7 @@ impl Debug for ServerHandle {
 
 #[derive(Clone)]
 pub struct ServerOutput {
-    sender: UnboundedSender<(Option<String>, Option<()>)>,
+    sender: UnboundedSender<ZellijClientData>,
     handle: Handle,
     channel_id: ChannelId,
     runtime_handle: tokio::runtime::Handle,
@@ -28,12 +28,8 @@ pub struct ServerOutput {
 
 impl std::io::Write for ServerOutput {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if buf.len() > 0 {
-            let _ = self.sender
-                .send((Some(String::from_utf8_lossy(buf).to_string()), None));
-        } else {
-            let _ = self.sender.send((None, Some(())));
-        }
+        let _ = self.sender
+                .send(ZellijClientData::Data(String::from_utf8_lossy(buf).to_string()));
         
         Ok(buf.len())
     }
@@ -64,6 +60,7 @@ impl Display for ServerChannelId {
     }
 }
 
+use session::ZellijClientData;
 use tokio::sync::mpsc::UnboundedSender;
 use zellij_server_command::CliArgs;
 use zellij_utils::clap::Parser;
