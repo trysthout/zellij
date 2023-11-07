@@ -33,5 +33,5 @@ libc = "0.2.149"
 
 
 [[bin]]
-name= "zellij-sshd"
+name= "zellij-ssh"
 path = "src/main.rs"
