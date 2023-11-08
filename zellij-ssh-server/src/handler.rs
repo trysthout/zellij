@@ -80,7 +80,7 @@ impl server::Handler for Handler {
     ) -> Result<(Self, Session), Self::Error> {
         let mut data = data.to_vec();
         if data[0] == 4 {
-            data = vec![17]            
+            data = vec![17]
         }
 
         self.send_event(HandlerEvent::Data(ServerChannelId(channel), data))?;
@@ -167,7 +167,6 @@ impl server::Handler for Handler {
 #[cfg(test)]
 mod test {
     use ansi_term::ANSIByteStrings;
-    
 
     #[test]
     fn term() {

@@ -405,10 +405,9 @@ impl WasmBridge {
                                         client_id,
                                         rendered_bytes.as_bytes().to_vec(),
                                     )];
-                                    let _ = senders
-                                        .send_to_screen(ScreenInstruction::PluginBytes(
-                                            plugin_bytes,
-                                        ));
+                                    let _ = senders.send_to_screen(ScreenInstruction::PluginBytes(
+                                        plugin_bytes,
+                                    ));
                                 },
                                 Err(e) => log::error!("{}", e),
                             }

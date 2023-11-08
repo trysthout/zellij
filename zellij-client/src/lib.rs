@@ -8,7 +8,6 @@ mod stdin_ansi_parser;
 mod stdin_handler;
 
 use log::info;
-use zellij_utils::nix::pty::OpenptyResult;
 use std::env::current_exe;
 use std::io::{self, Write};
 use std::path::Path;
@@ -16,6 +15,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
 use zellij_utils::errors::FatalError;
+use zellij_utils::nix::pty::OpenptyResult;
 
 use crate::stdin_ansi_parser::{AnsiStdinInstruction, StdinAnsiParser, SyncOutput};
 use crate::{
@@ -447,8 +447,8 @@ pub fn start_client(
                 let mut stdout = os_input.get_stdout_writer();
                 if let Some(sync) = synchronised_output {
                     stdout
-                       .write_all(sync.start_seq())
-                       .expect("cannot write to stdout");
+                        .write_all(sync.start_seq())
+                        .expect("cannot write to stdout");
                 }
 
                 stdout
@@ -516,7 +516,6 @@ pub fn start_client(
     reconnect_to_session
 }
 
-
 pub fn start_client_ssh(
     mut os_input: Box<dyn ClientOsApi>,
     opts: CliArgs,
@@ -527,7 +526,6 @@ pub fn start_client_ssh(
     tab_position_to_focus: Option<usize>,
     pane_id_to_focus: Option<(u32, bool)>, // (pane_id, is_plugin)
     is_a_reconnect: bool,
-    pty: OpenptyResult
 ) {
     info!("Starting Zellij ssh client!");
 
@@ -540,14 +538,14 @@ pub fn start_client_ssh(
     //    // we don't do this for a reconnect because our controlling terminal already has the
     //    // attributes we want from it, and some terminals don't treat these atomically (looking at
     //    // your Windows Terminal...)
-        let _ = os_input
-            .get_stdout_writer()
-            .write(take_snapshot.as_bytes())
-            .unwrap();
-        let _ = os_input
-            .get_stdout_writer()
-            .write(clear_client_terminal_attributes.as_bytes())
-            .unwrap();
+    let _ = os_input
+        .get_stdout_writer()
+        .write(take_snapshot.as_bytes())
+        .unwrap();
+    let _ = os_input
+        .get_stdout_writer()
+        .write(clear_client_terminal_attributes.as_bytes())
+        .unwrap();
     //}
     envs::set_zellij("0".to_string());
     config.env.set_vars();
@@ -739,7 +737,6 @@ pub fn start_client_ssh(
         .unwrap();
 
     let handle_error = |backtrace: String| {
-        os_input.unset_raw_mode(pty.slave).unwrap();
         let goto_start_of_last_line = format!("\u{1b}[{};{}H", full_screen_ws.rows, 1);
         let restore_snapshot = "\u{1b}[?1049l";
         os_input.disable_mouse().non_fatal();
@@ -752,7 +749,6 @@ pub fn start_client_ssh(
             .write(error.as_bytes())
             .unwrap();
         let _ = os_input.get_stdout_writer().flush().unwrap();
-        //std::process::exit(1);
     };
 
     let mut exit_msg = String::new();
@@ -779,7 +775,6 @@ pub fn start_client_ssh(
                 .recv()
                 .expect("failed to receive app instruction on channel")
         };
-        
 
         if loading {
             // when the app is still loading, we buffer instructions and show a loading screen
@@ -798,7 +793,7 @@ pub fn start_client_ssh(
                     loading = false;
                 },
                 instruction => {
-                   pending_instructions.push((instruction, err_ctx));
+                    pending_instructions.push((instruction, err_ctx));
                 },
             }
             continue;
@@ -814,7 +809,7 @@ pub fn start_client_ssh(
                     handle_error(reason.to_string());
                 }
                 exit_msg = reason.to_string();
-                
+
                 break;
             },
             ClientInstruction::Error(backtrace) => {
@@ -864,34 +859,32 @@ pub fn start_client_ssh(
     router_thread.join().unwrap();
 
     //if reconnect_to_session.is_none() {
-        let reset_style = "\u{1b}[m";
-        let show_cursor = "\u{1b}[?25h";
-        let restore_snapshot = "\u{1b}[?1049l";
-        let goto_start_of_last_line = format!("\u{1b}[{};{}H", full_screen_ws.rows, 1);
-        let goodbye_message = format!(
-            "{}\n{}{}{}{}\n",
-            goto_start_of_last_line, restore_snapshot, reset_style, show_cursor, exit_msg
-        );
+    let reset_style = "\u{1b}[m";
+    let show_cursor = "\u{1b}[?25h";
+    let restore_snapshot = "\u{1b}[?1049l";
+    let goto_start_of_last_line = format!("\u{1b}[{};{}H", full_screen_ws.rows, 1);
+    let goodbye_message = format!(
+        "{}\n{}{}{}{}\n",
+        goto_start_of_last_line, restore_snapshot, reset_style, show_cursor, exit_msg
+    );
 
-        os_input.disable_mouse().non_fatal();
-        info!("{}", exit_msg);
-        let mut stdout = os_input.get_stdout_writer();
-        let _ = os_input
-            .get_stdout_writer()
-            .write(clear_client_terminal_attributes.as_bytes())
-            .unwrap();
-        let _ = stdout.write(goodbye_message.as_bytes()).unwrap();
-        let _ = send_input_instructions.send(InputInstruction::Exit);
-        os_input.close();
-        
+    os_input.disable_mouse().non_fatal();
+    info!("{}", exit_msg);
+    let mut stdout = os_input.get_stdout_writer();
+    let _ = os_input
+        .get_stdout_writer()
+        .write(clear_client_terminal_attributes.as_bytes())
+        .unwrap();
+    let _ = stdout.write(goodbye_message.as_bytes()).unwrap();
+    let _ = send_input_instructions.send(InputInstruction::Exit);
+    os_input.close();
+
     //} else {
     //    let clear_screen = "\u{1b}[2J";
     //    let mut stdout = os_input.get_stdout_ssh_writer(pty.master);
     //    let _ = stdout.write(clear_screen.as_bytes()).unwrap();
     //    stdout.flush().unwrap();
     //}
-
-
 
     //reconnect_to_session
 }

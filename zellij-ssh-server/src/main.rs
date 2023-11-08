@@ -6,7 +6,6 @@ mod zellij_session;
 
 use std::fmt::{Debug, Display, Formatter};
 
-
 use russh::{server::Handle, ChannelId, Pty};
 
 #[derive(Clone)]
@@ -21,16 +20,14 @@ impl Debug for ServerHandle {
 #[derive(Clone)]
 pub struct ServerOutput {
     sender: UnboundedSender<ZellijClientData>,
-    handle: Handle,
-    channel_id: ChannelId,
-    runtime_handle: tokio::runtime::Handle,
 }
 
 impl std::io::Write for ServerOutput {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let _ = self.sender
-                .send(ZellijClientData::Data(String::from_utf8_lossy(buf).to_string()));
-        
+        let _ = self.sender.send(ZellijClientData::Data(
+            String::from_utf8_lossy(buf).to_string(),
+        ));
+
         Ok(buf.len())
     }
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {

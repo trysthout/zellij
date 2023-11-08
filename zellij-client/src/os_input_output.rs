@@ -7,9 +7,7 @@ use mio::{unix::SourceFd, Events, Interest, Poll, Token};
 use nix::pty::Winsize;
 use nix::sys::termios;
 use signal_hook::{consts::signal::*, iterator::Signals};
-use std::fs::File;
 use std::io::prelude::*;
-use std::os::fd::FromRawFd;
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -167,11 +165,9 @@ impl ClientOsApi for ClientOsInputOutput {
         // the lock (without having to wait for STDIN itself) forward this buffer and proceed to
         // wait for the "real" STDIN net time it is called
         let mut buffered_bytes = self.reading_from_stdin.lock().unwrap();
-        
+
         match buffered_bytes.take() {
-            Some(buffered_bytes) => {
-                Ok(buffered_bytes)
-            },
+            Some(buffered_bytes) => Ok(buffered_bytes),
             None => {
                 let stdin = std::io::stdin();
                 let mut stdin = stdin.lock();
@@ -336,7 +332,6 @@ pub fn get_cli_client_os_input() -> Result<ClientOsInputOutput, nix::Error> {
 pub trait StdinPoller {
     fn ready(&mut self) -> bool;
 }
-
 
 pub const DEFAULT_STDIN_POLL_TIMEOUT_MS: u64 = 10;
 

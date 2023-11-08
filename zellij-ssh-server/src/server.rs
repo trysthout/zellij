@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use russh::{server, MethodSet};
-use tokio::sync::mpsc::{unbounded_channel};
+use tokio::sync::mpsc::unbounded_channel;
 use zellij_server_command::CliArgs;
 
 use crate::{

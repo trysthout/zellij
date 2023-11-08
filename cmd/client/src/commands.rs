@@ -464,9 +464,7 @@ pub(crate) fn start_client(opts: CliArgs) {
                         }
                         ClientInfo::Resurrect(session_name.clone(), resurrection_layout)
                     },
-                    _ => {
-                        attach_with_session_name(session_name, config_options.clone(), create)
-                    }
+                    _ => attach_with_session_name(session_name, config_options.clone(), create),
                 }
             };
 

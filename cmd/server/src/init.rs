@@ -1,28 +1,26 @@
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 
+use log::info;
+use std::thread;
+use zellij::commands::{generate_unique_session_name, get_os_input, start_server};
+use zellij_client::os_input_output::get_client_os_input;
 use zellij_client::os_input_output::ClientOsApi;
+use zellij_utils::consts::*;
 use zellij_utils::data::Style;
+use zellij_utils::envs;
 use zellij_utils::input::config::Config;
+use zellij_utils::input::config::ConfigError;
 use zellij_utils::input::layout::Layout;
 use zellij_utils::input::options::Options;
-use zellij_utils::envs;
 use zellij_utils::ipc::ClientAttributes;
 use zellij_utils::ipc::ClientToServerMsg;
-use log::info;
-use zellij::commands::{start_server, generate_unique_session_name, get_os_input};
-use zellij_utils::consts::*;
-use zellij_utils::input::config::ConfigError;
 use zellij_utils::setup::Setup;
 use zellij_utils::shared::set_permissions;
-use std::thread;
-use zellij_client::{
-    os_input_output::get_client_os_input,
-};
 
 use crate::CliArgs;
 
-use zellij_utils:: miette::Report;
+use zellij_utils::miette::Report;
 
 fn create_ipc_pipe() -> PathBuf {
     let mut sock_dir = ZELLIJ_SOCK_DIR.clone();
@@ -39,9 +37,7 @@ pub fn init_server(opts: CliArgs) -> JoinHandle<()> {
         envs::set_session_name(generate_unique_session_name())
     }
 
-    let thread_join_handle = thread::spawn(move || {
-        start_server(create_ipc_pipe(), opts.debug)
-    });
+    let thread_join_handle = thread::spawn(move || start_server(create_ipc_pipe(), opts.debug));
 
     let os_input = get_os_input(get_client_os_input);
 
@@ -62,49 +58,38 @@ pub fn init_server(opts: CliArgs) -> JoinHandle<()> {
         Err(e) => {
             if let ConfigError::KdlError(error) = e {
                 let report: Report = error.into();
-                eprintln!("{:?}", report);
+                eprintln!("{report:?}");
             } else {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
             std::process::exit(1);
         },
     };
 
-    init_client(Box::new(os_input), zellij_cli_args, config, config_options, Some(layout), None,None, create_ipc_pipe());
+    init_client(
+        Box::new(os_input),
+        zellij_cli_args,
+        config,
+        config_options,
+        Some(layout),
+        None,
+        None,
+        create_ipc_pipe(),
+    );
     thread_join_handle
 }
 
 pub fn init_client(
-    mut os_input: Box<dyn ClientOsApi>,
+    os_input: Box<dyn ClientOsApi>,
     opts: zellij_utils::cli::CliArgs,
     config: Config,
     config_options: Options,
     layout: Option<Layout>,
-    tab_position_to_focus: Option<usize>,
-    pane_id_to_focus: Option<(u32, bool)>, // (pane_id, is_plugin)
+    _tab_position_to_focus: Option<usize>,
+    _pane_id_to_focus: Option<(u32, bool)>, // (pane_id, is_plugin)
     ipc: PathBuf,
-)  {
+) {
     info!("Initialize Zellij client!");
-
-    let clear_client_terminal_attributes = "\u{1b}[?1l\u{1b}=\u{1b}[r\u{1b}[?1000l\u{1b}[?1002l\u{1b}[?1003l\u{1b}[?1005l\u{1b}[?1006l\u{1b}[?12l";
-    let take_snapshot = "\u{1b}[?1049h";
-    let bracketed_paste = "\u{1b}[?2004h";
-    //os_input.unset_raw_mode(0).unwrap();
-
-    //if !is_a_reconnect {
-    //    // we don't do this for a reconnect because our controlling terminal already has the
-    //    // attributes we want from it, and some terminals don't treat these atomically (looking at
-    //    // your Windows Terminal...)
-    //    let _ = os_input
-    //        .get_stdout_writer()
-    //        .write(take_snapshot.as_bytes())
-    //        .unwrap();
-    //    
-    //    let _ = os_input
-    //        .get_stdout_writer()
-    //        .write(clear_client_terminal_attributes.as_bytes())
-    //        .unwrap();
-    //}
 
     envs::set_zellij("0".to_string());
     config.env.set_vars();
@@ -124,42 +109,9 @@ pub fn init_client(
         keybinds: config.keybinds.clone(),
     };
 
-
-    //let first_msg = match info {
-    //    //ClientInfo::Attach(name, config_options) => {
-    //    //    envs::set_session_name(name.clone());
-    //    //    os_input.update_session_name(name);
-    //    //    //let ipc_pipe = create_ipc_pipe();
-
-    //    //    ClientToServerMsg::AttachClient(
-    //    //        client_attributes,
-    //    //        config_options,
-    //    //        tab_position_to_focus,
-    //    //        pane_id_to_focus,
-    //    //    )
-    //    //        //ipc_pipe,
-    //    //},
-    //    
-    //    ClientInfo::New(name) => {
-    //        envs::set_session_name(name.clone());
-    //        os_input.update_session_name(name);
-    //        //let ipc_pipe = create_ipc_pipe();
-
-    //        //spawn_server(&*ipc_pipe, opts.debug).unwrap();
-
-    //        ClientToServerMsg::NewClient(
-    //            client_attributes,
-    //            Box::new(opts),
-    //            Box::new(config_options.clone()),
-    //            Box::new(layout.unwrap()),
-    //                Some(config.plugins.clone()),
-    //        )
-    //    },
-    //    _ => todo!()
-    //};
-    let name = opts.session.clone();
-    envs::set_session_name(name.clone().unwrap());
-    os_input.update_session_name(name.clone().unwrap());
+    //let name = opts.session.clone();
+    //envs::set_session_name(name.clone().unwrap());
+    //os_input.update_session_name(name.clone().unwrap());
     //let ipc_pipe = create_ipc_pipe();
 
     //spawn_server(&*ipc_pipe, opts.debug).unwrap();
@@ -167,11 +119,10 @@ pub fn init_client(
     let first_msg = ClientToServerMsg::NewClient(
         client_attributes,
         Box::new(opts),
-        Box::new(config_options.clone()),
+        Box::new(config_options),
         Box::new(layout.unwrap()),
-            Some(config.plugins.clone()),
+        Some(config.plugins),
     );
-
 
     os_input.connect_to_server(&ipc);
     os_input.send_to_server(first_msg);

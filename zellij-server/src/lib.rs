@@ -493,7 +493,9 @@ pub fn start_server(mut os_input: Box<dyn ServerOsApi>, socket_path: PathBuf) {
             ServerInstruction::ClientExit(client_id) => {
                 let client_count = session_state.read().unwrap().client_ids().len();
                 if client_count == 1 {
-                    to_server.send(ServerInstruction::DetachSession(vec![client_id])).unwrap();
+                    to_server
+                        .send(ServerInstruction::DetachSession(vec![client_id]))
+                        .unwrap();
                     continue;
                 }
                 let _ =

@@ -1,8 +1,7 @@
 use crossbeam_channel::Receiver;
 use interprocess::local_socket::LocalSocketStream;
-use log::info;
-use russh::{ChannelId, Sig};
 
+use russh::{ChannelId, Sig};
 
 use std::os::unix::io::RawFd;
 use std::path::Path;
@@ -23,8 +22,6 @@ use zellij_utils::{interprocess, libc, nix};
 
 use crate::session::ZellijClientData;
 use crate::{ServerHandle, ServerOutput};
-
-const SIGWINCH_CB_THROTTLE_DURATION: time::Duration = time::Duration::from_millis(50);
 
 const ENABLE_MOUSE_SUPPORT: &str = "\u{1b}[?1000h\u{1b}[?1002h\u{1b}[?1015h\u{1b}[?1006h";
 const DISABLE_MOUSE_SUPPORT: &str = "\u{1b}[?1006l\u{1b}[?1015l\u{1b}[?1002l\u{1b}[?1000l";
@@ -91,11 +88,11 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
         match buffered_bytes.take() {
             Some(buffered_bytes) => Ok(buffered_bytes),
             None => {
-                    let mut read_buf = if let Ok(data) = self.server_receiver.recv() {
-                        data
-                    } else {
-                        return Err("sshd channel disconnected");
-                    };
+                let read_buf = if let Ok(data) = self.server_receiver.recv() {
+                    data
+                } else {
+                    return Err("sshd channel disconnected");
+                };
                 //let mut read_buf = Vec::with_capacity(128);
                 //loop {
                 //    let mut read_bytes = if let Ok(data) = self.server_receiver.recv() {
@@ -129,9 +126,6 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     fn get_stdout_writer(&self) -> Box<dyn io::Write> {
         Box::new(ServerOutput {
             sender: self.sender.clone(),
-            handle: self.handle.0.clone(),
-            channel_id: self.channel_id,
-            runtime_handle: tokio::runtime::Runtime::new().unwrap().handle().clone(),
         })
     }
     fn get_stdin_reader(&self) -> Box<dyn io::Read> {
@@ -249,7 +243,7 @@ impl zellij_client::os_input_output::ClientOsApi for SshInputOutput {
     }
 
     fn close(&self) {
-       let _ = self.sender.send(ZellijClientData::Exit);
+        let _ = self.sender.send(ZellijClientData::Exit);
     }
 }
 

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;
 
@@ -6,11 +5,13 @@ use russh::server::Handle;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use std::sync::Mutex;
+use zellij_client::start_client_ssh;
 use zellij_server_command::init::init_server;
 use zellij_server_command::CliArgs;
+use zellij_utils::cli::Command;
 use zellij_utils::cli::{SessionCommand, Sessions};
-use zellij_utils::input::actions::Action;
-use zellij_utils::input::config::{Config};
+use zellij_utils::data::ConnectToSession;
+use zellij_utils::envs;
 use zellij_utils::input::options::Options;
 use zellij_utils::setup::Setup;
 
@@ -35,8 +36,6 @@ pub struct Session {
     pty_request: Option<PtyRequest>,
     channel_id: Option<ServerChannelId>,
     rx: UnboundedReceiver<HandlerEvent>,
-    recv: UnboundedReceiver<ZellijClientData>,
-    sender: UnboundedSender<ZellijClientData>,
     server_sender: crossbeam_channel::Sender<Vec<u8>>,
     server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
     server_signal_sender: crossbeam_channel::Sender<Sig>,
@@ -45,7 +44,6 @@ pub struct Session {
 
 impl Session {
     pub fn new(args: CliArgs, rx: UnboundedReceiver<HandlerEvent>) -> Self {
-        let (sender, recv) = unbounded_channel();
         let (server_sender, server_receiver) = crossbeam_channel::unbounded::<Vec<u8>>();
         let (server_signal_sender, server_signal_receiver) = crossbeam_channel::unbounded::<Sig>();
 
@@ -54,8 +52,6 @@ impl Session {
             rx,
             handle: None,
             channel_id: None,
-            sender,
-            recv,
             server_receiver,
             server_sender,
             pty_request: None,
@@ -88,10 +84,9 @@ impl Session {
                 self.channel_id = Some(channel_id);
             },
             HandlerEvent::ShellRequest(channel_id) => {
-                let result = handle_openpty();
                 let (sender, mut recv) = unbounded_channel::<ZellijClientData>();
                 let pty_request = self.pty_request.as_ref().unwrap();
-                let win_size = Winsize {
+                let win_size = libc::winsize {
                     ws_row: pty_request.row_height as u16,
                     ws_col: pty_request.col_width as u16,
                     ws_xpixel: pty_request.pix_width as u16,
@@ -103,7 +98,6 @@ impl Session {
                 std::thread::spawn(move || {
                     Self::start_zellij_client(
                         args,
-                        result,
                         sender,
                         server_receiver,
                         server_signal_receiver,
@@ -124,7 +118,7 @@ impl Session {
                                 },
                                 ZellijClientData::Exit => {
                                     let _ = handle.close(channel_id).await;
-                                }
+                                },
                             }
                         }
                     }
@@ -146,28 +140,29 @@ impl Session {
 
     fn start_zellij_client(
         args: CliArgs,
-        pty: OpenptyResult,
         sender: UnboundedSender<ZellijClientData>,
         server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
         server_signal_receiver: crossbeam_channel::Receiver<Sig>,
         handle: ServerHandle,
         channel_id: ChannelId,
-        win_size: Winsize,
+        win_size: libc::winsize,
     ) {
-        use zellij_client::start_client_ssh;
-        use zellij_utils::cli::Command;
-        use zellij_utils::data::ConnectToSession;
+        let session_name = if let Some(name) = args.session {
+            Some(name)
+        } else {
+            envs::get_session_name().ok()
+        };
 
         let zellij_cli_args = zellij_utils::cli::CliArgs {
             max_panes: args.max_panes,
             data_dir: args.data_dir.clone(),
             server: None,
-            session: args.session.clone(),
+            session: session_name.clone(),
             layout: args.layout.clone(),
             config: args.config.clone(),
             config_dir: args.config_dir.clone(),
             command: Some(Command::Sessions(Sessions::Attach {
-                session_name: args.session.clone(),
+                session_name: session_name,
                 create: false,
                 force_run_commands: false,
                 index: None,
@@ -189,12 +184,11 @@ impl Session {
             },
         };
         let reconnect_to_session: Option<ConnectToSession> = None;
-        //let os_input = get_os_input(get_client_os_input);
         let os_input = get_server_input(
             handle,
             channel_id,
             win_size,
-            sender.clone(),
+            sender,
             server_receiver,
             server_signal_receiver,
         );
@@ -276,12 +270,8 @@ impl Session {
                 },
             };
 
-            let tab_position_to_focus = reconnect_to_session
-                .as_ref()
-                .and_then(|r| r.tab_position);
-            let pane_id_to_focus = reconnect_to_session
-                .as_ref()
-                .and_then(|r| r.pane_id);
+            let tab_position_to_focus = reconnect_to_session.as_ref().and_then(|r| r.tab_position);
+            let pane_id_to_focus = reconnect_to_session.as_ref().and_then(|r| r.pane_id);
             start_client_ssh(
                 Box::new(os_input),
                 opts,
@@ -292,7 +282,6 @@ impl Session {
                 tab_position_to_focus,
                 pane_id_to_focus,
                 is_a_reconnect,
-                pty,
             );
         } else if let Some(session_name) = opts.session.clone() {
             start_client_ssh(
@@ -305,7 +294,6 @@ impl Session {
                 None,
                 None,
                 is_a_reconnect,
-                pty,
             );
         } else if let Some(session_name) = config_options.session_name.as_ref() {
             if let Ok(val) = envs::get_session_name() {
@@ -345,7 +333,6 @@ impl Session {
                         None,
                         None,
                         is_a_reconnect,
-                        pty,
                     );
                 },
                 _ => {
@@ -359,7 +346,6 @@ impl Session {
                         None,
                         None,
                         is_a_reconnect,
-                        pty,
                     );
                 },
             }
@@ -375,26 +361,6 @@ impl Session {
     }
 }
 use zellij_client::ClientInfo;
-
-fn attach_with_cli_client(
-    cli_action: zellij_utils::cli::CliAction,
-    session_name: &str,
-    config: Option<Config>,
-) {
-    let os_input = get_os_input(zellij_client::os_input_output::get_client_os_input);
-    let get_current_dir = || std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    match Action::actions_from_cli(cli_action, Box::new(get_current_dir), config) {
-        Ok(actions) => {
-            zellij_client::cli_client::start_cli_client(Box::new(os_input), session_name, actions);
-            std::process::exit(0);
-        },
-        Err(e) => {
-            eprintln!("{e}");
-            log::error!("Error sending action: {}", e);
-            std::process::exit(2);
-        },
-    }
-}
 
 fn attach_with_session_index(config_options: Options, index: usize, create: bool) -> ClientInfo {
     // Ignore the session_name when `--index` is provided
@@ -434,9 +400,7 @@ fn attach_with_session_name(
                 ClientInfo::Attach(s, config_options)
             },
             SessionNameMatch::AmbiguousPrefix(_sessions) => {
-                println!(
-                    "Ambiguous selection: multiple sessions names start with '{prefix}':"
-                );
+                println!("Ambiguous selection: multiple sessions names start with '{prefix}':");
                 //print_sessions(
                 //    sessions
                 //        .iter()
@@ -469,24 +433,11 @@ fn attach_with_session_name(
 }
 
 use crate::zellij_session::{print_sessions_with_index, resurrection_layout, session_exists};
-use zellij_utils::{envs, nix};
-
-pub fn get_os_input<OsInputOutput>(
-    fn_get_os_input: fn() -> Result<OsInputOutput, nix::Error>,
-) -> OsInputOutput {
-    match fn_get_os_input() {
-        Ok(os_input) => os_input,
-        Err(e) => {
-            eprintln!("failed to open terminal:\n{e}");
-            process::exit(1);
-        },
-    }
-}
 
 fn get_server_input(
     handle: ServerHandle,
     channel_id: ChannelId,
-    win_size: Winsize,
+    win_size: libc::winsize,
     sender: UnboundedSender<ZellijClientData>,
     server_receiver: crossbeam_channel::Receiver<Vec<u8>>,
     server_signal_receiver: crossbeam_channel::Receiver<Sig>,
@@ -516,19 +467,9 @@ fn find_indexed_session(
     match sessions.get(index) {
         Some(session) => ClientInfo::Attach(session.clone(), config_options),
         None => {
-            println!(
-                "No session indexed by {index} found. The following sessions are active:"
-            );
+            println!("No session indexed by {index} found. The following sessions are active:");
             print_sessions_with_index(sessions);
             process::exit(1);
         },
     }
-}
-
-use nix::{
-    pty::{openpty, OpenptyResult, Winsize},
-};
-
-fn handle_openpty() -> OpenptyResult {
-    openpty(None, None).expect("Creating pty failed")
 }

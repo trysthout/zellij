@@ -87,7 +87,11 @@ fn main() {
         }
     }
 
-    if let Some(Command::Sessions(Sessions::ListSessions { no_formatting, short: _ })) = opts.command {
+    if let Some(Command::Sessions(Sessions::ListSessions {
+        no_formatting,
+        short: _,
+    })) = opts.command
+    {
         commands::list_sessions(no_formatting);
     } else if let Some(Command::Sessions(Sessions::KillAllSessions { yes })) = opts.command {
         commands::kill_all_sessions(yes);

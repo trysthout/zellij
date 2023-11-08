@@ -9,12 +9,15 @@ use std::{
 
 use log::LevelFilter;
 
-use log4rs::append::{rolling_file::{
-    policy::compound::{
-        roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger, CompoundPolicy,
+use log4rs::append::{
+    console::ConsoleAppender,
+    rolling_file::{
+        policy::compound::{
+            roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger, CompoundPolicy,
+        },
+        RollingFileAppender,
     },
-    RollingFileAppender,
-}, console::ConsoleAppender};
+};
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
@@ -67,7 +70,6 @@ pub fn configure_logger() {
         )
         .unwrap();
 
-
     let stdout = ConsoleAppender::builder().build();
 
     // Set the default logging level to "info" and log it to zellij.log file
@@ -88,10 +90,11 @@ pub fn configure_logger() {
                 .additive(false)
                 .build("zellij_server::logging_pipe", LevelFilter::Trace),
         )
-        .build(Root::builder()
-            .appender("logFile")
-            .appender("stdout")
-            .build(LevelFilter::Info)
+        .build(
+            Root::builder()
+                .appender("logFile")
+                .appender("stdout")
+                .build(LevelFilter::Info),
         )
         .unwrap();
 
