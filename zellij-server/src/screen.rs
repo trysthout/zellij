@@ -272,11 +272,13 @@ pub enum ScreenInstruction {
     PreviousSwapLayout(ClientId),
     NextSwapLayout(ClientId),
     QueryTabNames(ClientId),
-    NewTiledPluginPane(RunPlugin, Option<String>, ClientId), // Option<String> is
-    // optional pane title
-    NewFloatingPluginPane(RunPlugin, Option<String>, ClientId), // Option<String> is an
-    NewInPlacePluginPane(RunPlugin, Option<String>, PaneId, ClientId), // Option<String> is an
-    // optional pane title
+    NewTiledPluginPane(RunPlugin, Option<String>, bool, ClientId), // Option<String> is
+    // optional pane title, bool is skip cache
+    NewFloatingPluginPane(RunPlugin, Option<String>, bool, ClientId), // Option<String> is an
+    // optional pane title, bool
+    // is skip cache
+    NewInPlacePluginPane(RunPlugin, Option<String>, PaneId, bool, ClientId), // Option<String> is an
+    // optional pane title, bool is skip cache
     StartOrReloadPluginPane(RunPlugin, Option<String>),
     AddPlugin(
         Option<bool>, // should_float
@@ -293,10 +295,10 @@ pub enum ScreenInstruction {
     StartPluginLoadingIndication(u32, LoadingIndication), // u32 - plugin_id
     ProgressPluginLoadingOffset(u32),                 // u32 - plugin id
     RequestStateUpdateForPlugins,
-    LaunchOrFocusPlugin(RunPlugin, bool, bool, bool, Option<PaneId>, ClientId), // bools are: should_float, move_to_focused_tab, should_open_in_place Option<PaneId> is the pane id to replace
-    LaunchPlugin(RunPlugin, bool, bool, Option<PaneId>, ClientId), // bools are: should_float, should_open_in_place Option<PaneId> is the pane id to replace
-    SuppressPane(PaneId, ClientId),                                // bool is should_float
-    FocusPaneWithId(PaneId, bool, ClientId),                       // bool is should_float
+    LaunchOrFocusPlugin(RunPlugin, bool, bool, bool, Option<PaneId>, bool, ClientId), // bools are: should_float, move_to_focused_tab, should_open_in_place, Option<PaneId> is the pane id to replace, bool following it is skip_cache
+    LaunchPlugin(RunPlugin, bool, bool, Option<PaneId>, bool, ClientId), // bools are: should_float, should_open_in_place Option<PaneId> is the pane id to replace, bool after is skip_cache
+    SuppressPane(PaneId, ClientId),                                      // bool is should_float
+    FocusPaneWithId(PaneId, bool, ClientId),                             // bool is should_float
     RenamePane(PaneId, Vec<u8>),
     RenameTab(usize, Vec<u8>),
     RequestPluginPermissions(
@@ -2056,6 +2058,22 @@ impl Screen {
         }
         session_layout_metadata
     }
+    fn update_plugin_loading_stage(
+        &mut self,
+        pid: u32,
+        loading_indication: LoadingIndication,
+    ) -> bool {
+        let all_tabs = self.get_tabs_mut();
+        let mut found_plugin = false;
+        for tab in all_tabs.values_mut() {
+            if tab.has_plugin(pid) {
+                found_plugin = true;
+                tab.update_plugin_loading_stage(pid, loading_indication);
+                break;
+            }
+        }
+        found_plugin
+    }
 }
 
 // The box is here in order to make the
@@ -2115,6 +2133,7 @@ pub(crate) fn screen_thread_main(
     let mut pending_tab_switches: HashSet<(usize, ClientId)> = HashSet::new(); // usize is the
                                                                                // tab_index
 
+    let mut plugin_loading_message_cache = HashMap::new();
     loop {
         let (event, mut err_ctx) = screen
             .bus
@@ -2791,9 +2810,9 @@ pub(crate) fn screen_thread_main(
                 screen.apply_layout(
                     layout,
                     floating_panes_layout,
-                    new_pane_pids,
+                    new_pane_pids.clone(),
                     new_floating_pane_pids,
-                    new_plugin_ids,
+                    new_plugin_ids.clone(),
                     tab_index,
                     client_id,
                 )?;
@@ -2803,6 +2822,18 @@ pub(crate) fn screen_thread_main(
                         screen.go_to_tab(tab_index as usize, client_id)?;
                     }
                 }
+
+                for plugin_ids in new_plugin_ids.values() {
+                    for plugin_id in plugin_ids {
+                        if let Some(loading_indication) =
+                            plugin_loading_message_cache.remove(plugin_id)
+                        {
+                            screen.update_plugin_loading_stage(*plugin_id, loading_indication);
+                            screen.render()?;
+                        }
+                    }
+                }
+
                 screen.unblock_input()?;
                 screen.render()?;
             },
@@ -3145,7 +3176,12 @@ pub(crate) fn screen_thread_main(
                     .senders
                     .send_to_server(ServerInstruction::Log(tab_names, client_id))?;
             },
-            ScreenInstruction::NewTiledPluginPane(run_plugin, pane_title, client_id) => {
+            ScreenInstruction::NewTiledPluginPane(
+                run_plugin,
+                pane_title,
+                skip_cache,
+                client_id,
+            ) => {
                 let tab_index = screen.active_tab_indices.values().next().unwrap_or(&1);
                 let size = Size::default();
                 let should_float = Some(false);
@@ -3162,39 +3198,45 @@ pub(crate) fn screen_thread_main(
                         None,
                         client_id,
                         size,
+                        skip_cache,
                     ))?;
             },
-            ScreenInstruction::NewFloatingPluginPane(run_plugin, pane_title, client_id) => {
-                match screen.active_tab_indices.values().next() {
-                    Some(tab_index) => {
-                        let size = Size::default();
-                        let should_float = Some(true);
-                        let should_be_opened_in_place = false;
-                        screen
-                            .bus
-                            .senders
-                            .send_to_pty(PtyInstruction::FillPluginCwd(
-                                should_float,
-                                should_be_opened_in_place,
-                                pane_title,
-                                run_plugin,
-                                *tab_index,
-                                None,
-                                client_id,
-                                size,
-                            ))?;
-                    },
-                    None => {
-                        log::error!(
-                            "Could not find an active tab - is there at least 1 connected user?"
-                        );
-                    },
-                }
+            ScreenInstruction::NewFloatingPluginPane(
+                run_plugin,
+                pane_title,
+                skip_cache,
+                client_id,
+            ) => match screen.active_tab_indices.values().next() {
+                Some(tab_index) => {
+                    let size = Size::default();
+                    let should_float = Some(true);
+                    let should_be_opened_in_place = false;
+                    screen
+                        .bus
+                        .senders
+                        .send_to_pty(PtyInstruction::FillPluginCwd(
+                            should_float,
+                            should_be_opened_in_place,
+                            pane_title,
+                            run_plugin,
+                            *tab_index,
+                            None,
+                            client_id,
+                            size,
+                            skip_cache,
+                        ))?;
+                },
+                None => {
+                    log::error!(
+                        "Could not find an active tab - is there at least 1 connected user?"
+                    );
+                },
             },
             ScreenInstruction::NewInPlacePluginPane(
                 run_plugin,
                 pane_title,
                 pane_id_to_replace,
+                skip_cache,
                 client_id,
             ) => match screen.active_tab_indices.values().next() {
                 Some(tab_index) => {
@@ -3213,6 +3255,7 @@ pub(crate) fn screen_thread_main(
                             Some(pane_id_to_replace),
                             client_id,
                             size,
+                            skip_cache,
                         ))?;
                 },
                 None => {
@@ -3293,16 +3336,18 @@ pub(crate) fn screen_thread_main(
                 } else {
                     log::error!("Tab index not found: {:?}", tab_index);
                 }
+                if let Some(loading_indication) = plugin_loading_message_cache.remove(&plugin_id) {
+                    screen.update_plugin_loading_stage(plugin_id, loading_indication);
+                    screen.render()?;
+                }
                 screen.log_and_report_session_state()?;
                 screen.unblock_input()?;
             },
             ScreenInstruction::UpdatePluginLoadingStage(pid, loading_indication) => {
-                let all_tabs = screen.get_tabs_mut();
-                for tab in all_tabs.values_mut() {
-                    if tab.has_plugin(pid) {
-                        tab.update_plugin_loading_stage(pid, loading_indication);
-                        break;
-                    }
+                let found_plugin =
+                    screen.update_plugin_loading_stage(pid, loading_indication.clone());
+                if !found_plugin {
+                    plugin_loading_message_cache.insert(pid, loading_indication);
                 }
                 screen.render()?;
             },
@@ -3340,6 +3385,7 @@ pub(crate) fn screen_thread_main(
                 move_to_focused_tab,
                 should_open_in_place,
                 pane_id_to_replace,
+                skip_cache,
                 client_id,
             ) => match pane_id_to_replace {
                 Some(pane_id_to_replace) => match screen.active_tab_indices.values().next() {
@@ -3357,6 +3403,7 @@ pub(crate) fn screen_thread_main(
                                 Some(pane_id_to_replace),
                                 client_id,
                                 size,
+                                skip_cache,
                             ))?;
                     },
                     None => {
@@ -3400,6 +3447,7 @@ pub(crate) fn screen_thread_main(
                                         None,
                                         client_id,
                                         Size::default(),
+                                        skip_cache,
                                     ))?;
                             }
                         },
@@ -3414,6 +3462,7 @@ pub(crate) fn screen_thread_main(
                 should_float,
                 should_open_in_place,
                 pane_id_to_replace,
+                skip_cache,
                 client_id,
             ) => match pane_id_to_replace {
                 Some(pane_id_to_replace) => match screen.active_tab_indices.values().next() {
@@ -3431,6 +3480,7 @@ pub(crate) fn screen_thread_main(
                                 Some(pane_id_to_replace),
                                 client_id,
                                 size,
+                                skip_cache,
                             ))?;
                     },
                     None => {
@@ -3465,6 +3515,7 @@ pub(crate) fn screen_thread_main(
                                     None,
                                     client_id,
                                     Size::default(),
+                                    skip_cache,
                                 ))?;
                         },
                         None => {

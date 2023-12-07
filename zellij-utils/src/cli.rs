@@ -242,6 +242,10 @@ pub enum Sessions {
             conflicts_with("floating")
         )]
         in_place: bool,
+
+        /// Skip the memory and HD cache and force recompile of the plugin (good for development)
+        #[clap(short, long, value_parser, default_value("false"), takes_value(false))]
+        skip_plugin_cache: bool,
     },
     /// Edit file with default $EDITOR / $VISUAL
     #[clap(visible_alias = "e")]
@@ -417,6 +421,8 @@ pub enum CliAction {
         start_suspended: bool,
         #[clap(long, value_parser)]
         configuration: Option<PluginUserConfiguration>,
+        #[clap(short, long, value_parser)]
+        skip_plugin_cache: bool,
     },
     /// Open the specified file in a new zellij pane with your default EDITOR
     Edit {
@@ -456,7 +462,7 @@ pub enum CliAction {
     },
     /// Embed focused pane if floating or float focused pane if embedded
     TogglePaneEmbedOrFloating,
-    /// Toggle the visibility of all fdirectionloating panes in the current Tab, open one if none exist
+    /// Toggle the visibility of all floating panes in the current Tab, open one if none exist
     ToggleFloatingPanes,
     /// Close the focused pane.
     ClosePane,
@@ -526,6 +532,8 @@ pub enum CliAction {
         url: Url,
         #[clap(short, long, value_parser)]
         configuration: Option<PluginUserConfiguration>,
+        #[clap(short, long, value_parser)]
+        skip_plugin_cache: bool,
     },
     LaunchPlugin {
         #[clap(short, long, value_parser)]
@@ -535,6 +543,8 @@ pub enum CliAction {
         url: Url,
         #[clap(short, long, value_parser)]
         configuration: Option<PluginUserConfiguration>,
+        #[clap(short, long, value_parser)]
+        skip_plugin_cache: bool,
     },
     RenameSession {
         name: String,

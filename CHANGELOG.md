@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+* feat(plugins): skip plugin cache flag when loading plugins (https://github.com/zellij-org/zellij/pull/2971)
+* fix(grid): recover from various errors (https://github.com/zellij-org/zellij/pull/2972)
+* fix(grid): flaky scroll with scroll region (https://github.com/zellij-org/zellij/pull/2935)
+* fix(plugins): display errors properly (https://github.com/zellij-org/zellij/pull/2975)
+* feat(terminal): implement synchronized renders (https://github.com/zellij-org/zellij/pull/2977)
+
+## [0.39.2] - 2023-11-29
+* fix(cli): typo in cli help (https://github.com/zellij-org/zellij/pull/2906)
+* fix(sessions): slow session updates in the session-manager (https://github.com/zellij-org/zellij/pull/2951)
+* fix: compiler warnings (https://github.com/zellij-org/zellij/pull/2873)
 
 ## [0.39.1] - 2023-11-13
 * fix: styled underlines in editors (https://github.com/zellij-org/zellij/pull/2918)
